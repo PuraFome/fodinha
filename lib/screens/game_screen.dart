@@ -27,30 +27,44 @@ class GameScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<GameProvider>(
-        builder: (context, gameProvider, child) {
-          final game = gameProvider.currentGame;
+      body: Container(
+        // Use the provided room image as the background for the game screen
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/images/sala.jpg'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Consumer<GameProvider>(
+          builder: (context, gameProvider, child) {
+            final game = gameProvider.currentGame;
 
-          if (game == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
+            if (game == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          return Column(
-            children: [
-              _buildGameInfo(context, game),
-              const Divider(),
-              Expanded(
-                child: Column(
-                  children: [
-                    Expanded(child: _buildOtherPlayers(game, gameProvider)),
-                    _buildTable(context, game, gameProvider),
-                    _buildCurrentPlayerHand(context, game, gameProvider),
-                  ],
+            // Make content background semi-transparent so the room image shows
+            return Column(
+              children: [
+                _buildGameInfo(context, game),
+                const Divider(),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Expanded(child: _buildOtherPlayers(game, gameProvider)),
+                      // Wrap table in a translucent container so image is visible
+                      Container(
+                        color: Colors.transparent,
+                        child: _buildTable(context, game, gameProvider),
+                      ),
+                      _buildCurrentPlayerHand(context, game, gameProvider),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }

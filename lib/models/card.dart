@@ -110,7 +110,7 @@ class GameCard {
   /// - spades -> espadas
   ///
   /// File names (as requested): As.png, 2.png, 3.png, 4.png, 5.png, 6.png,
-  /// 7.png, Dama.png, Velete.png, Rei.png
+  /// 7.png, Dama.png, Valete.png, Rei.png
   String get assetPath {
     String suitFolder;
     switch (suit) {

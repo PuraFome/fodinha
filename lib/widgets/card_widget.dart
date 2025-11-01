@@ -26,33 +26,28 @@ class CardWidget extends StatelessWidget {
     final double finalHeight = size * scale;
     final double finalWidth = size * 0.7 * scale; // portrait ratio
 
-    // Only use image assets for hearts (copas). For other suits, use the
-    // existing drawn card UI as fallback. This avoids error logs when
-    // other suit assets are not present.
-    if (card.suit == CardSuit.hearts) {
-      final assetPath = card.assetPath;
-      // Use contain so the whole asset is visible (no cropping). The
-      // SizedBox enforces a portrait rectangle and Image will scale to fit.
-      return SizedBox(
-        width: finalWidth,
-        height: finalHeight,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.asset(
-            assetPath,
-            fit: BoxFit.contain,
-            width: double.infinity,
-            height: double.infinity,
-            errorBuilder: (context, error, stackTrace) {
-              // fallback: drawn card UI
-              return _buildDrawnCard(context, finalWidth, finalHeight);
-            },
-          ),
+    // Attempt to load a card image for all suits; if the asset is missing or
+    // fails to load, fall back to the drawn card UI.
+    final assetPath = card.assetPath;
+    // Use contain so the whole asset is visible (no cropping). The
+    // SizedBox enforces a portrait rectangle and Image will scale to fit.
+    return SizedBox(
+      width: finalWidth,
+      height: finalHeight,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.asset(
+          assetPath,
+          fit: BoxFit.contain,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (context, error, stackTrace) {
+            // fallback: drawn card UI
+            return _buildDrawnCard(context, finalWidth, finalHeight);
+          },
         ),
-      );
-    }
-
-    return _buildDrawnCard(context, finalWidth, finalHeight);
+      ),
+    );
   }
 
   Widget _buildDrawnCard(BuildContext context, [double? finalWidth, double? finalHeight]) {
