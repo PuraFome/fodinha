@@ -17,6 +17,9 @@ class MultiplayerService {
   String? _currentGameId;
   String? _currentPlayerId;
 
+  /// The id assigned by server for this client (if provided)
+  String? get currentPlayerId => _currentPlayerId;
+
   /// Stream of game state updates
   Stream<GameModel> get gameStateStream => _gameStateController.stream;
 
@@ -61,6 +64,22 @@ class MultiplayerService {
       switch (type) {
         case 'game_state':
           final gameState = GameModel.fromJson(data['game']);
+          // Ensure we track the current game id when the server sends the game state.
+          // This fixes cases where the client (creator) hasn't yet set _currentGameId
+          // and later actions like setReady() would be ignored.
+          try {
+            _currentGameId = gameState.id;
+          } catch (_) {}
+
+          // If server ever starts sending a playerId field identifying this client,
+          // capture it so UI can map the local player correctly. Keep it optional.
+          if (data is Map && data.containsKey('playerId')) {
+            final pid = data['playerId'];
+            if (pid is String) {
+              _currentPlayerId = pid;
+            }
+          }
+
           _gameStateController.add(gameState);
           break;
         case 'error':

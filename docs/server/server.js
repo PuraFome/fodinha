@@ -177,9 +177,42 @@ function handleStartGame(ws, client) {
     sendError(ws, 'Not all players are ready');
     return;
   }
-  
+
+  // Prepare a deck and deal cards to players
+  const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+  const ranks = ['four','five','six','seven','queen','jack','king','ace','two','three'];
+
+  // Build deck
+  let deck = [];
+  for (const suit of suits) {
+    for (const rank of ranks) {
+      deck.push({ suit, rank });
+    }
+  }
+
+  // Shuffle deck
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+
+  // Decide cards per player for initial round (use 10 as standard fodinha hand)
+  const cardsPerPlayer = 10;
+
+  // Deal
+  for (const player of game.players) {
+    player.hand = [];
+    for (let c = 0; c < cardsPerPlayer && deck.length > 0; c++) {
+      player.hand.push(deck.pop());
+    }
+  }
+
+  // Set trump card (next card from deck if available)
+  game.trumpCard = deck.length > 0 ? deck.pop() : null;
+
   game.state = 'bidding';
-  console.log(`Game ${client.gameId} started`);
+  console.log(`Game ${client.gameId} started and cards dealt`);
+
   sendGameState(client.gameId);
 }
 
@@ -222,16 +255,17 @@ function sendGameState(gameId) {
   const game = games.get(gameId);
   if (!game) return;
   
-  const message = JSON.stringify({
-    type: 'game_state',
-    game: game
-  });
-  
-  // Send to all clients in this game
-  wss.clients.forEach(client => {
-    const clientInfo = clients.get(client);
-    if (clientInfo && clientInfo.gameId === gameId && client.readyState === WebSocket.OPEN) {
-      client.send(message);
+  // Send to all clients in this game. Include the player's own id so the client
+  // can map itself to the correct Player object locally.
+  wss.clients.forEach(socket => {
+    const clientInfo = clients.get(socket);
+    if (clientInfo && clientInfo.gameId === gameId && socket.readyState === WebSocket.OPEN) {
+      const messageObj = {
+        type: 'game_state',
+        game: game,
+        playerId: clientInfo.playerId,
+      };
+      socket.send(JSON.stringify(messageObj));
     }
   });
 }

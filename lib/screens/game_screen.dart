@@ -40,7 +40,7 @@ class GameScreen extends StatelessWidget {
               Expanded(
                 child: Column(
                   children: [
-                    Expanded(child: _buildOtherPlayers(game)),
+                    Expanded(child: _buildOtherPlayers(game, gameProvider)),
                     _buildTable(game, gameProvider),
                     _buildCurrentPlayerHand(game, gameProvider),
                   ],
@@ -102,14 +102,15 @@ class GameScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildOtherPlayers(GameModel game) {
+  Widget _buildOtherPlayers(GameModel game, GameProvider provider) {
     final otherPlayers = game.players;
     return ListView.builder(
       itemCount: otherPlayers.length,
       itemBuilder: (context, index) {
         final player = otherPlayers[index];
-        final isCurrentPlayer = index == game.currentPlayerIndex;
-        
+        final isCurrentPlayer = player.id == provider.currentPlayerId ||
+            (provider.currentPlayerId == null && index == game.currentPlayerIndex);
+
         return Card(
           color: isCurrentPlayer ? Colors.blue[50] : null,
           child: ListTile(
@@ -162,7 +163,11 @@ class GameScreen extends StatelessWidget {
   }
 
   Widget _buildBiddingControls(GameModel game, GameProvider gameProvider) {
-    final maxBid = game.players.first.hand.length;
+    final currentPlayer = game.players.firstWhere(
+      (p) => p.id == gameProvider.currentPlayerId,
+      orElse: () => game.currentPlayer,
+    );
+    final maxBid = currentPlayer.hand.length;
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -188,8 +193,11 @@ class GameScreen extends StatelessWidget {
   }
 
   Widget _buildCurrentPlayerHand(GameModel game, GameProvider gameProvider) {
-    final currentPlayer = game.players.first; // Simplified - should get actual player
-    
+    final currentPlayer = game.players.firstWhere(
+      (p) => p.id == gameProvider.currentPlayerId,
+      orElse: () => game.currentPlayer,
+    );
+
     return Container(
       height: 150,
       padding: const EdgeInsets.all(8),

@@ -21,6 +21,10 @@ class GameProvider extends ChangeNotifier {
   GameProvider() {
     _multiplayerService.gameStateStream.listen((game) {
       _currentGame = game;
+      // Update current player id from the multiplayer service if available
+      try {
+        _currentPlayerId = _multiplayerService.currentPlayerId ?? _currentPlayerId;
+      } catch (_) {}
       notifyListeners();
     });
 
