@@ -1,6 +1,7 @@
 import 'card.dart';
 import 'player.dart';
 import 'deck.dart';
+import 'dart:math';
 
 /// Enum representing the current state of the game
 enum GameState {
@@ -80,6 +81,11 @@ class GameModel {
     state = GameState.bidding;
     dealerIndex = 0;
     roundNumber = 1;
+    // Ensure the first bidder is randomized for each new game by resetting
+    // currentBidderIndex here. _startNewRound() will detect null and pick a
+    // random starter. This prevents reuse of the previous game's starter when
+    // reusing the same GameModel instance.
+    currentBidderIndex = null;
     _startNewRound();
   }
 
@@ -104,6 +110,22 @@ class GameModel {
     // Move to next dealer
     dealerIndex = (dealerIndex + 1) % players.length;
     currentPlayerIndex = (dealerIndex + 1) % players.length;
+
+    // Determine who starts bidding this round.
+    // - For the very first round (when currentBidderIndex is null) choose a
+    //   random player to start bidding.
+    // - For subsequent rounds, the player who starts bidding is the next
+    //   player after the one who started the previous round.
+    if (players.isNotEmpty) {
+      if (currentBidderIndex == null) {
+        // Randomize first bidder for the first round
+        final rnd = Random();
+        currentBidderIndex = rnd.nextInt(players.length);
+      } else {
+        // Advance first bidder by one position for the new round
+        currentBidderIndex = (currentBidderIndex! + 1) % players.length;
+      }
+    }
   }
 
   /// Deal cards to players

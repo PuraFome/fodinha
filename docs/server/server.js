@@ -94,6 +94,8 @@ function handleCreateGame(ws, client, data) {
   currentTrick: [],
   playerIdsInTrick: [],
   trickStarterIndex: null,
+    // index of the player who started bidding this round (helps rotate starter)
+    bidStarterIndex: null,
     bids: {},
     bidConfirmed: {},
     currentBidderIndex: null,
@@ -227,8 +229,9 @@ function handleStartGame(ws, client) {
   // Initialize bidding state
   game.bids = {};
   game.bidConfirmed = {};
-  // start bidding with player after dealer
-  game.currentBidderIndex = (game.dealerIndex + 1) % game.players.length;
+  // Choose a randomized starter for bidding for this new game
+  game.bidStarterIndex = Math.floor(Math.random() * game.players.length);
+  game.currentBidderIndex = game.bidStarterIndex;
 
   game.state = 'bidding';
   console.log(`Game ${client.gameId} started and cards dealt for round ${game.roundNumber}`);
@@ -403,7 +406,14 @@ function handleConfirmBid(ws, client, data) {
           game.trumpCard = newDeck.length > 0 ? newDeck.pop() : null;
           game.bids = {};
           game.bidConfirmed = {};
-          game.currentBidderIndex = (game.dealerIndex + 1) % game.players.length;
+          // Advance the bidStarterIndex by one for the next round (if defined),
+          // otherwise fall back to player after dealer for backward compatibility.
+          if (game.bidStarterIndex != null) {
+            game.bidStarterIndex = (game.bidStarterIndex + 1) % game.players.length;
+          } else {
+            game.bidStarterIndex = (game.dealerIndex + 1) % game.players.length;
+          }
+          game.currentBidderIndex = game.bidStarterIndex;
           game.state = 'bidding';
 
           // Send updated game state after advancing
@@ -587,7 +597,14 @@ function handlePlayCard(ws, client, data) {
         game.trumpCard = newDeck.length > 0 ? newDeck.pop() : null;
         game.bids = {};
         game.bidConfirmed = {};
-        game.currentBidderIndex = (game.dealerIndex + 1) % game.players.length;
+        // Advance the bidStarterIndex by one for the next round (if defined),
+        // otherwise fall back to player after dealer for backward compatibility.
+        if (game.bidStarterIndex != null) {
+          game.bidStarterIndex = (game.bidStarterIndex + 1) % game.players.length;
+        } else {
+          game.bidStarterIndex = (game.dealerIndex + 1) % game.players.length;
+        }
+        game.currentBidderIndex = game.bidStarterIndex;
         game.state = 'bidding';
 
   // Send updated game state after advancing
