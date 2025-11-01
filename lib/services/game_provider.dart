@@ -43,8 +43,16 @@ class GameProvider extends ChangeNotifier {
         }
       }
 
-      // if a new game instance arrived, reset locked forbidden bids
+      // If a new game instance arrived OR a new round started, reset locked
+      // forbidden bids. The locked set should only apply to the current round
+      // (and persist only while the same round/state is active). Not clearing
+      // it when round changes caused stale forbidden values to remain disabled
+      // in subsequent rounds (bug reported where multiple buttons stayed
+      // disabled).
       if (_currentGame == null || _currentGame!.id != game.id) {
+        _lockedForbidden.clear();
+      } else if (_currentGame!.roundNumber != game.roundNumber) {
+        // round advanced within the same game
         _lockedForbidden.clear();
       }
 
