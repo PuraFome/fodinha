@@ -1,0 +1,16 @@
+{
+  "name": "fodinha-server",
+  "version": "1.0.0",
+  "description": "WebSocket server for Fodinha multiplayer card game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["websocket", "game", "multiplayer", "fodinha", "cards"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.0",
+    "uuid": "^9.0.1"
+  }
+}
