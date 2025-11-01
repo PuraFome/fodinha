@@ -12,6 +12,9 @@ class GameProvider extends ChangeNotifier {
   String? _currentPlayerId;
   String? _errorMessage;
   bool _isConnected = false;
+  // Client-side locked forbidden bids for the current game/round (keeps the
+  // 'forbidden' number disabled for the last bidder even after they place a bid)
+  final Set<int> _lockedForbidden = {};
 
   GameModel? get currentGame => _currentGame;
   String? get currentPlayerId => _currentPlayerId;
@@ -20,6 +23,11 @@ class GameProvider extends ChangeNotifier {
 
   GameProvider() {
     _multiplayerService.gameStateStream.listen((game) {
+      // if a new game instance arrived, reset locked forbidden bids
+      if (_currentGame == null || _currentGame!.id != game.id) {
+        _lockedForbidden.clear();
+      }
+
       _currentGame = game;
       // Update current player id from the multiplayer service if available
       try {
@@ -71,7 +79,31 @@ class GameProvider extends ChangeNotifier {
 
   /// Place a bid
   void placeBid(int bid) {
+    // If this client is the last to bet (others have placed), lock the forbidden
+    // bid number so it remains disabled in the UI even after placing a different bid.
+    final game = _currentGame;
+    final pid = _currentPlayerId;
+    if (game != null && pid != null) {
+      final bidsCount = game.bids.length;
+      final playersCount = game.players.length;
+      final amILastToBet = bidsCount == playersCount - 1 && !game.bids.containsKey(pid);
+      if (amILastToBet) {
+        final existingSum = game.bids.values.fold<int>(0, (a, b) => a + b);
+        final totalCards = game.players.firstWhere((p) => p.id == pid, orElse: () => game.currentPlayer).hand.length;
+        final forbidden = totalCards - existingSum;
+        _lockedForbidden.add(forbidden);
+      }
+    }
+
     _multiplayerService.placeBid(bid);
+  }
+
+  /// Returns the set of locked forbidden bid numbers for UI purposes.
+  Set<int> get lockedForbidden => _lockedForbidden;
+
+  /// Confirm the current player's bid
+  void confirmBid() {
+    _multiplayerService.confirmBid();
   }
 
   /// Play a card

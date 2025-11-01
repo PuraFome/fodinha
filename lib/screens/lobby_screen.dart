@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/game_provider.dart';
+import '../services/localization_provider.dart';
 import '../models/game.dart';
 import 'game_screen.dart';
 
@@ -12,7 +13,7 @@ class LobbyScreen extends StatelessWidget {
   void _copyGameId(BuildContext context, String gameId) {
     Clipboard.setData(ClipboardData(text: gameId));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Game ID copied to clipboard')),
+      SnackBar(content: Text(context.read<LocalizationProvider>().t('copiedGameId'))),
     );
   }
 
@@ -20,7 +21,7 @@ class LobbyScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Game Lobby'),
+        title: Text(context.watch<LocalizationProvider>().t('lobby.title')),
         centerTitle: true,
       ),
       body: Consumer<GameProvider>(
@@ -54,9 +55,9 @@ class LobbyScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       children: [
-                        const Text(
-                          'Game ID',
-                          style: TextStyle(
+                        Text(
+                          context.watch<LocalizationProvider>().t('label.gameId'),
+                          style: const TextStyle(
                             fontSize: 16,
                             color: Colors.grey,
                           ),
@@ -85,7 +86,7 @@ class LobbyScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Players (${game.players.length}/${game.maxPlayers})',
+                  '${context.watch<LocalizationProvider>().t('players')} (${game.players.length}/${game.maxPlayers})',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -105,9 +106,9 @@ class LobbyScreen extends StatelessWidget {
                             ),
                           ),
                           title: Text(player.name),
-                          subtitle: player.isDealer
-                              ? const Text('Dealer')
-                              : null,
+              subtitle: player.isDealer
+                ? Text(context.watch<LocalizationProvider>().t('dealer'))
+                : null,
                           trailing: player.isReady
                               ? const Icon(
                                   Icons.check_circle,
@@ -143,7 +144,9 @@ class LobbyScreen extends StatelessWidget {
                           orElse: () => game.players.first,
                         );
                         return Text(
-                          currentPlayer.isReady ? 'Not Ready' : 'Ready',
+                          currentPlayer.isReady
+                              ? context.watch<LocalizationProvider>().t('notReady')
+                              : context.watch<LocalizationProvider>().t('ready'),
                           style: const TextStyle(fontSize: 16),
                         );
                       },
@@ -158,9 +161,9 @@ class LobbyScreen extends StatelessWidget {
                         padding: const EdgeInsets.all(16),
                         backgroundColor: Colors.green,
                       ),
-                      child: const Text(
-                        'Start Game',
-                        style: TextStyle(fontSize: 16),
+                      child: Text(
+                        context.watch<LocalizationProvider>().t('startGame'),
+                        style: const TextStyle(fontSize: 16),
                       ),
                     ),
                   ),
@@ -173,9 +176,9 @@ class LobbyScreen extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.all(16),
                   ),
-                  child: const Text(
-                    'Leave Game',
-                    style: TextStyle(fontSize: 16),
+                  child: Text(
+                    context.watch<LocalizationProvider>().t('leaveGame'),
+                    style: const TextStyle(fontSize: 16),
                   ),
                 ),
               ],

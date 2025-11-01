@@ -63,6 +63,39 @@ class MultiplayerService {
 
       switch (type) {
         case 'game_state':
+          // If server provided a playerId, capture it
+          if (data is Map && data.containsKey('playerId')) {
+            final pid = data['playerId'];
+            if (pid is String) {
+              _currentPlayerId = pid;
+            }
+          }
+
+          // If server included a privateHand for this client, merge it into the
+          // game JSON so GameModel.fromJson receives the client's actual hand
+          // for the matching player while public players' hands remain hidden.
+          if (data is Map && data.containsKey('privateHand') && data.containsKey('game')) {
+            final gameJson = Map<String, dynamic>.from(data['game']);
+            final privateHand = data['privateHand'];
+            final pid = data['playerId'];
+            if (pid is String && privateHand is List) {
+              final players = (gameJson['players'] as List?) ?? [];
+              for (var i = 0; i < players.length; i++) {
+                final p = Map<String, dynamic>.from(players[i]);
+                if (p['id'] == pid) {
+                  p['hand'] = privateHand;
+                  players[i] = p;
+                  break;
+                }
+              }
+              gameJson['players'] = players;
+              final gameState = GameModel.fromJson(gameJson);
+              _currentGameId = gameState.id;
+              _gameStateController.add(gameState);
+              break;
+            }
+          }
+
           final gameState = GameModel.fromJson(data['game']);
           // Ensure we track the current game id when the server sends the game state.
           // This fixes cases where the client (creator) hasn't yet set _currentGameId
@@ -168,6 +201,16 @@ class MultiplayerService {
       'type': 'place_bid',
       'gameId': _currentGameId,
       'bid': bid,
+    });
+  }
+
+  /// Confirm the bid (lock it and move to next bidder)
+  void confirmBid() {
+    if (_currentGameId == null) return;
+
+    _sendMessage({
+      'type': 'confirm_bid',
+      'gameId': _currentGameId,
     });
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/game_provider.dart';
+import '../services/localization_provider.dart';
 import 'lobby_screen.dart';
 
 /// Home screen for the Fodinha game
@@ -39,7 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _createGame() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      _showError('Please enter your name');
+      _showError(context.read<LocalizationProvider>().t('error.enterName'));
       return;
     }
 
@@ -49,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!gameProvider.isConnected) {
       final connected = await gameProvider.connect(_serverUrlController.text);
       if (!connected) {
-        _showError('Failed to connect to server');
+        _showError(context.read<LocalizationProvider>().t('error.failedConnect'));
         return;
       }
     }
@@ -69,12 +70,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final gameId = _gameIdController.text.trim();
     
     if (name.isEmpty) {
-      _showError('Please enter your name');
+      _showError(context.read<LocalizationProvider>().t('error.enterName'));
       return;
     }
     
     if (gameId.isEmpty) {
-      _showError('Please enter game ID');
+      _showError(context.read<LocalizationProvider>().t('error.enterGameId'));
       return;
     }
 
@@ -84,7 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!gameProvider.isConnected) {
       final connected = await gameProvider.connect(_serverUrlController.text);
       if (!connected) {
-        _showError('Failed to connect to server');
+        _showError(context.read<LocalizationProvider>().t('error.failedConnect'));
         return;
       }
     }
@@ -103,7 +104,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Fodinha'),
+        title: Text(context.watch<LocalizationProvider>().t('app.title')),
+        actions: [
+          IconButton(
+            tooltip: context.watch<LocalizationProvider>().isEnglish ? 'EN' : 'PT',
+            icon: Text(context.watch<LocalizationProvider>().isEnglish ? 'EN' : 'PT'),
+            onPressed: () => context.read<LocalizationProvider>().toggleLanguage(),
+          ),
+        ],
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -118,8 +126,8 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.red,
             ),
             const SizedBox(height: 20),
-            const Text(
-              'Fodinha',
+            Text(
+              context.watch<LocalizationProvider>().t('app.title'),
               style: TextStyle(
                 fontSize: 36,
                 fontWeight: FontWeight.bold,
@@ -127,8 +135,8 @@ class _HomeScreenState extends State<HomeScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Multiplayer Card Game',
+            Text(
+              context.watch<LocalizationProvider>().t('home.subtitle'),
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey,
@@ -138,24 +146,24 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 40),
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Your Name',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person),
+              decoration: InputDecoration(
+                labelText: context.watch<LocalizationProvider>().t('label.yourName'),
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.person),
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _serverUrlController,
-              decoration: const InputDecoration(
-                labelText: 'Server URL',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.dns),
+              decoration: InputDecoration(
+                labelText: context.watch<LocalizationProvider>().t('label.serverUrl'),
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.dns),
               ),
             ),
             const SizedBox(height: 32),
-            const Text(
-              'Create New Game',
+            Text(
+              context.watch<LocalizationProvider>().t('section.create'),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -164,15 +172,15 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
               value: _maxPlayers,
-              decoration: const InputDecoration(
-                labelText: 'Max Players',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.groups),
+              decoration: InputDecoration(
+                labelText: context.watch<LocalizationProvider>().t('label.maxPlayers'),
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.groups),
               ),
               items: [2, 3, 4, 5, 6]
                   .map((n) => DropdownMenuItem(
                         value: n,
-                        child: Text('$n Players'),
+                        child: Text('$n ${context.watch<LocalizationProvider>().t('players')}'),
                       ))
                   .toList(),
               onChanged: (value) {
@@ -187,17 +195,17 @@ class _HomeScreenState extends State<HomeScreen> {
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.all(16),
               ),
-              child: const Text(
-                'Create Game',
-                style: TextStyle(fontSize: 16),
+              child: Text(
+                context.watch<LocalizationProvider>().t('button.create'),
+                style: const TextStyle(fontSize: 16),
               ),
             ),
             const SizedBox(height: 32),
             const Divider(),
             const SizedBox(height: 16),
-            const Text(
-              'Join Existing Game',
-              style: TextStyle(
+            Text(
+              context.watch<LocalizationProvider>().t('section.join'),
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -205,10 +213,10 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 16),
             TextField(
               controller: _gameIdController,
-              decoration: const InputDecoration(
-                labelText: 'Game ID',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.tag),
+              decoration: InputDecoration(
+                labelText: context.watch<LocalizationProvider>().t('label.gameId'),
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.tag),
               ),
             ),
             const SizedBox(height: 16),
@@ -217,9 +225,9 @@ class _HomeScreenState extends State<HomeScreen> {
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.all(16),
               ),
-              child: const Text(
-                'Join Game',
-                style: TextStyle(fontSize: 16),
+              child: Text(
+                context.watch<LocalizationProvider>().t('button.join'),
+                style: const TextStyle(fontSize: 16),
               ),
             ),
           ],

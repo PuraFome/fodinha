@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'services/game_provider.dart';
+import 'services/localization_provider.dart';
 import 'screens/home_screen.dart';
 
 void main() {
@@ -12,17 +13,23 @@ class FodinhaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => GameProvider(),
-      child: MaterialApp(
-        title: 'Fodinha',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.red),
-          useMaterial3: true,
-        ),
-        home: const HomeScreen(),
-      ),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => GameProvider()),
+        ChangeNotifierProvider(create: (_) => LocalizationProvider()),
+      ],
+      child: Builder(builder: (context) {
+        final loc = context.watch<LocalizationProvider>();
+        return MaterialApp(
+          title: loc.t('app.title'),
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.red),
+            useMaterial3: true,
+          ),
+          home: const HomeScreen(),
+        );
+      }),
     );
   }
 }

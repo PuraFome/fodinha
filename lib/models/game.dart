@@ -24,6 +24,8 @@ class GameModel {
   List<GameCard> currentTrick;
   List<String> playerIdsInTrick;
   Map<String, int> bids;
+  Map<String, bool> bidConfirmed;
+  int? currentBidderIndex;
   int maxPlayers;
 
   GameModel({
@@ -38,12 +40,16 @@ class GameModel {
     List<GameCard>? currentTrick,
     List<String>? playerIdsInTrick,
     Map<String, int>? bids,
+    Map<String, bool>? bidConfirmed,
+    int? currentBidderIndex,
     this.maxPlayers = 6,
   })  : players = players ?? [],
         deck = deck ?? Deck(),
         currentTrick = currentTrick ?? [],
         playerIdsInTrick = playerIdsInTrick ?? [],
-        bids = bids ?? {};
+        bids = bids ?? {},
+        bidConfirmed = bidConfirmed ?? {},
+        currentBidderIndex = currentBidderIndex;
 
   /// Add a player to the game
   bool addPlayer(Player player) {
@@ -154,11 +160,44 @@ class GameModel {
   void _evaluateTrick() {
     if (currentTrick.isEmpty) return;
 
-    // Find winner (simplified - just highest card for now)
-    var winnerIndex = 0;
-    for (var i = 1; i < currentTrick.length; i++) {
-      if (currentTrick[i].value > currentTrick[winnerIndex].value) {
-        winnerIndex = i;
+    // If there is a trumpCard (vira), determine the manilha rank
+    CardRank? manilhaRank;
+    if (trumpCard != null) {
+      final ranks = CardRank.values;
+      final viraIndex = ranks.indexOf(trumpCard!.rank);
+      final manilhaIndex = (viraIndex + 1) % ranks.length;
+      manilhaRank = ranks[manilhaIndex];
+    }
+
+    // Helper to get suit order for manilha tie-break: ouro < espadas < copas < paus
+    final suitOrder = {
+      CardSuit.diamonds: 0, // ouro
+      CardSuit.spades: 1,   // espadas
+      CardSuit.hearts: 2,   // copas
+      CardSuit.clubs: 3,    // paus
+    };
+
+    int winnerIndex = 0;
+
+    // If any manilha present, only manilhas compete and tiebreak by suit order
+    if (manilhaRank != null && currentTrick.any((c) => c.rank == manilhaRank)) {
+      var bestSuitOrder = -1;
+      for (var i = 0; i < currentTrick.length; i++) {
+        final c = currentTrick[i];
+        if (c.rank == manilhaRank) {
+          final so = suitOrder[c.suit] ?? 0;
+          if (so > bestSuitOrder) {
+            bestSuitOrder = so;
+            winnerIndex = i;
+          }
+        }
+      }
+    } else {
+      // No manilha: winner is highest rank (by value). If tie, first occurrence wins.
+      for (var i = 1; i < currentTrick.length; i++) {
+        if (currentTrick[i].value > currentTrick[winnerIndex].value) {
+          winnerIndex = i;
+        }
       }
     }
 
@@ -221,7 +260,9 @@ class GameModel {
         'trumpCard': trumpCard?.toJson(),
         'currentTrick': currentTrick.map((c) => c.toJson()).toList(),
         'playerIdsInTrick': playerIdsInTrick,
-        'bids': bids,
+    'bids': bids,
+    'bidConfirmed': bidConfirmed,
+    'currentBidderIndex': currentBidderIndex,
         'maxPlayers': maxPlayers,
       };
 
@@ -247,6 +288,8 @@ class GameModel {
       playerIdsInTrick:
           (json['playerIdsInTrick'] as List?)?.cast<String>() ?? [],
       bids: (json['bids'] as Map?)?.cast<String, int>() ?? {},
+      bidConfirmed: (json['bidConfirmed'] as Map?)?.cast<String, bool>() ?? {},
+      currentBidderIndex: json['currentBidderIndex'],
       maxPlayers: json['maxPlayers'] ?? 6,
     );
   }
