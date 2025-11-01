@@ -154,7 +154,90 @@ class GameProvider extends ChangeNotifier {
 
   /// Play a card
   void playCard(GameCard card) {
+    // Send play to server
     _multiplayerService.playCard(card);
+
+    // Also create a local reveal overlay immediately so players see the
+    // played cards and the winner highlighted for 4 seconds, even if the
+    // server hasn't emitted the reveal event yet. The server reveal (if any)
+    // will override this when it arrives.
+    final game = _currentGame;
+    final localPid = _currentPlayerId;
+    if (game == null || localPid == null) return;
+
+    // Build entries from already-played cards in the current trick plus
+    // the card this client just played.
+    final entries = <Map<String, dynamic>>[];
+    for (var i = 0; i < game.currentTrick.length; i++) {
+      final c = game.currentTrick[i];
+      final pid = (i < game.playerIdsInTrick.length) ? game.playerIdsInTrick[i] : null;
+      final player = pid != null
+          ? game.players.firstWhere((p) => p.id == pid, orElse: () => Player(id: pid, name: pid, hand: []))
+          : Player(id: 'unknown', name: 'Player', hand: []);
+      entries.add({'playerId': player.id, 'playerName': player.name, 'card': c.toJson()});
+    }
+
+    final localPlayer = game.players.firstWhere((p) => p.id == localPid, orElse: () => Player(id: localPid, name: 'Player', hand: []));
+    entries.add({'playerId': localPlayer.id, 'playerName': localPlayer.name, 'card': card.toJson()});
+
+    // Compute winner locally using same rules as GameModel._evaluateTrick
+    final cards = <GameCard>[...game.currentTrick, card];
+    final pids = <String>[];
+    pids.addAll(game.playerIdsInTrick);
+    pids.add(localPid);
+
+    CardRank? manilhaRank;
+    if (game.trumpCard != null) {
+      final ranks = CardRank.values;
+      final viraIndex = ranks.indexOf(game.trumpCard!.rank);
+      final manilhaIndex = (viraIndex + 1) % ranks.length;
+      manilhaRank = ranks[manilhaIndex];
+    }
+
+    final suitOrder = {
+      CardSuit.diamonds: 0,
+      CardSuit.spades: 1,
+      CardSuit.hearts: 2,
+      CardSuit.clubs: 3,
+    };
+
+    int winnerIndex = 0;
+    if (manilhaRank != null && cards.any((c) => c.rank == manilhaRank)) {
+      var bestSuitOrder = -1;
+      for (var i = 0; i < cards.length; i++) {
+        final c = cards[i];
+        if (c.rank == manilhaRank) {
+          final so = suitOrder[c.suit] ?? 0;
+          if (so > bestSuitOrder) {
+            bestSuitOrder = so;
+            winnerIndex = i;
+          }
+        }
+      }
+    } else {
+      for (var i = 1; i < cards.length; i++) {
+        if (cards[i].value > cards[winnerIndex].value) {
+          winnerIndex = i;
+        }
+      }
+    }
+
+    final winnerId = (winnerIndex >= 0 && winnerIndex < pids.length) ? pids[winnerIndex] : localPid;
+
+    // Set client-side reveal overlay with default 4s duration
+    _revealTimer?.cancel();
+    _revealData = {
+      'entries': entries,
+      'winnerId': winnerId,
+      'roundNumber': game.roundNumber,
+      'duration': 4,
+    };
+    notifyListeners();
+
+    _revealTimer = Timer(const Duration(seconds: 4), () {
+      _revealData = null;
+      notifyListeners();
+    });
   }
 
   /// Clear error message
