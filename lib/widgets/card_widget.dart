@@ -20,32 +20,48 @@ class CardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Apply a global scale so cards are 150% of the provided `size`.
+    // Keep a portrait card shape: height = size * 1.5, width = size * 0.7 * 1.5
+    const double scale = 1.5;
+    final double finalHeight = size * scale;
+    final double finalWidth = size * 0.7 * scale; // portrait ratio
+
     // Only use image assets for hearts (copas). For other suits, use the
     // existing drawn card UI as fallback. This avoids error logs when
     // other suit assets are not present.
     if (card.suit == CardSuit.hearts) {
       final assetPath = card.assetPath;
+      // Use contain so the whole asset is visible (no cropping). The
+      // SizedBox enforces a portrait rectangle and Image will scale to fit.
       return SizedBox(
-        width: size * 0.7,
-        height: size,
-        child: Image.asset(
-          assetPath,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) {
-            // fallback: drawn card UI
-            return _buildDrawnCard(context);
-          },
+        width: finalWidth,
+        height: finalHeight,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.asset(
+            assetPath,
+            fit: BoxFit.contain,
+            width: double.infinity,
+            height: double.infinity,
+            errorBuilder: (context, error, stackTrace) {
+              // fallback: drawn card UI
+              return _buildDrawnCard(context, finalWidth, finalHeight);
+            },
+          ),
         ),
       );
     }
 
-    return _buildDrawnCard(context);
+    return _buildDrawnCard(context, finalWidth, finalHeight);
   }
 
-  Widget _buildDrawnCard(BuildContext context) {
+  Widget _buildDrawnCard(BuildContext context, [double? finalWidth, double? finalHeight]) {
+    final double h = finalHeight ?? size * 1.5;
+    final double w = finalWidth ?? size * 0.7 * 1.5;
+
     return Container(
-      width: size * 0.7,
-      height: size,
+      width: w,
+      height: h,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
@@ -72,7 +88,7 @@ class CardWidget extends StatelessWidget {
                   card.rankName,
                   style: TextStyle(
                     color: _suitColor,
-                    fontSize: size * 0.2,
+                    fontSize: h * 0.12,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -80,7 +96,7 @@ class CardWidget extends StatelessWidget {
                   card.suitName,
                   style: TextStyle(
                     color: _suitColor,
-                    fontSize: size * 0.2,
+                    fontSize: h * 0.12,
                   ),
                 ),
               ],
@@ -90,7 +106,7 @@ class CardWidget extends StatelessWidget {
             card.suitName,
             style: TextStyle(
               color: _suitColor,
-              fontSize: size * 0.35,
+              fontSize: h * 0.21,
             ),
           ),
           Padding(
@@ -101,14 +117,14 @@ class CardWidget extends StatelessWidget {
                   card.suitName,
                   style: TextStyle(
                     color: _suitColor,
-                    fontSize: size * 0.2,
+                    fontSize: h * 0.12,
                   ),
                 ),
                 Text(
                   card.rankName,
                   style: TextStyle(
                     color: _suitColor,
-                    fontSize: size * 0.2,
+                    fontSize: h * 0.12,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -132,9 +148,11 @@ class CardBackWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final double finalSize = size * 1.5;
+
     return Container(
-      width: size * 0.7,
-      height: size,
+      width: finalSize,
+      height: finalSize,
       decoration: BoxDecoration(
         color: Colors.blue[900],
         borderRadius: BorderRadius.circular(8),
@@ -151,7 +169,7 @@ class CardBackWidget extends StatelessWidget {
         child: Icon(
           Icons.style,
           color: Colors.white,
-          size: size * 0.4,
+          size: finalSize * 0.4,
         ),
       ),
     );

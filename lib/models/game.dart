@@ -193,11 +193,41 @@ class GameModel {
         }
       }
     } else {
-      // No manilha: winner is highest rank (by value). If tie, first occurrence wins.
-      for (var i = 1; i < currentTrick.length; i++) {
-        if (currentTrick[i].value > currentTrick[winnerIndex].value) {
-          winnerIndex = i;
+      // No manilha: we must consider that equal-rank cards (ties) cancel each other.
+      // Example: if two players play 2 and another plays A, the two 2s cancel and the A wins.
+      // Approach:
+      // 1. Group indices by rank.
+      // 2. Remove ranks that appear more than once (they anulam).
+      // 3. Among remaining singletons pick the highest rank (by enum index/value).
+      // 4. If none remain (all ranks cancelled), fall back to first player as winner.
+
+      final Map<CardRank, List<int>> rankToIndices = {};
+      for (var i = 0; i < currentTrick.length; i++) {
+        final r = currentTrick[i].rank;
+        rankToIndices.putIfAbsent(r, () => []).add(i);
+      }
+
+      // Collect indices of ranks that are unique (not cancelled)
+      final candidateIndices = <int>[];
+      rankToIndices.forEach((rank, indices) {
+        if (indices.length == 1) candidateIndices.add(indices.first);
+      });
+
+      if (candidateIndices.isNotEmpty) {
+        // Choose the candidate with the highest rank (strongest)
+        var bestIdx = candidateIndices.first;
+        for (var idx in candidateIndices) {
+          if (currentTrick[idx].value > currentTrick[bestIdx].value) {
+            bestIdx = idx;
+          }
         }
+        winnerIndex = bestIdx;
+      } else {
+        // All ranks cancelled each other. This is a rare situation; to keep
+        // game flow deterministic we award the trick to the first player.
+        // NOTE: this is an implementation assumption — if you prefer a
+        // different behavior (e.g. trick is draw), tell me and I can change it.
+        winnerIndex = 0;
       }
     }
 

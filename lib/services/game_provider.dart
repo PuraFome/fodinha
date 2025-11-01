@@ -215,10 +215,29 @@ class GameProvider extends ChangeNotifier {
         }
       }
     } else {
-      for (var i = 1; i < cards.length; i++) {
-        if (cards[i].value > cards[winnerIndex].value) {
-          winnerIndex = i;
+      // Non-manilha: apply cancellation rule for tied ranks.
+      final Map<CardRank, List<int>> rankToIndices = {};
+      for (var i = 0; i < cards.length; i++) {
+        final r = cards[i].rank;
+        rankToIndices.putIfAbsent(r, () => []).add(i);
+      }
+
+      final candidateIndices = <int>[];
+      rankToIndices.forEach((rank, indices) {
+        if (indices.length == 1) candidateIndices.add(indices.first);
+      });
+
+      if (candidateIndices.isNotEmpty) {
+        var bestIdx = candidateIndices.first;
+        for (var idx in candidateIndices) {
+          if (cards[idx].value > cards[bestIdx].value) {
+            bestIdx = idx;
+          }
         }
+        winnerIndex = bestIdx;
+      } else {
+        // If all cancelled, choose first player as fallback (implementation choice)
+        winnerIndex = 0;
       }
     }
 
