@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/game.dart';
 import '../models/player.dart';
@@ -12,6 +13,10 @@ class GameProvider extends ChangeNotifier {
   String? _currentPlayerId;
   String? _errorMessage;
   bool _isConnected = false;
+  Map<String, dynamic>? _revealData;
+  // Timer to automatically clear reveal overlay if server doesn't send new state
+  // (keeps UI robust even if server-side timing changes)
+  Timer? _revealTimer;
   // Client-side locked forbidden bids for the current game/round (keeps the
   // 'forbidden' number disabled for the last bidder even after they place a bid)
   final Set<int> _lockedForbidden = {};
@@ -23,6 +28,21 @@ class GameProvider extends ChangeNotifier {
 
   GameProvider() {
     _multiplayerService.gameStateStream.listen((game) {
+      // Do not blindly clear reveal overlay on every game_state.
+      // Only clear reveal if the game advanced beyond the revealed round
+      // (for example, after the 10s reveal delay the server will advance the round).
+      if (_revealData != null) {
+        try {
+          final revRound = _revealData!['roundNumber'] as int?;
+          if (revRound != null && game.roundNumber > revRound) {
+            _revealData = null;
+            _revealTimer?.cancel();
+          }
+        } catch (_) {
+          // if any parsing fails, keep previous reveal and rely on timer to clear it
+        }
+      }
+
       // if a new game instance arrived, reset locked forbidden bids
       if (_currentGame == null || _currentGame!.id != game.id) {
         _lockedForbidden.clear();
@@ -39,6 +59,28 @@ class GameProvider extends ChangeNotifier {
     _multiplayerService.errorStream.listen((error) {
       _errorMessage = error;
       notifyListeners();
+    });
+
+    _multiplayerService.revealStream.listen((rev) {
+      // cancel any previous reveal timer
+      _revealTimer?.cancel();
+
+      _revealData = rev;
+      notifyListeners();
+
+      // If the server provided a duration (seconds), respect it; otherwise
+      // default to 4 seconds for trick reveals.
+      int durationSec = 4;
+      try {
+        final d = rev['duration'];
+        if (d is int) durationSec = d;
+        if (d is double) durationSec = d.toInt();
+      } catch (_) {}
+
+      _revealTimer = Timer(Duration(seconds: durationSec), () {
+        _revealData = null;
+        notifyListeners();
+      });
     });
   }
 
@@ -89,8 +131,12 @@ class GameProvider extends ChangeNotifier {
       final amILastToBet = bidsCount == playersCount - 1 && !game.bids.containsKey(pid);
       if (amILastToBet) {
         final existingSum = game.bids.values.fold<int>(0, (a, b) => a + b);
-        final totalCards = game.players.firstWhere((p) => p.id == pid, orElse: () => game.currentPlayer).hand.length;
-        final forbidden = totalCards - existingSum;
+        // Compute cards per round from roundNumber (1..10..1) rather than relying
+        // on player's hand length which may be hidden (round 1). This prevents
+        // erroneous forbidden values like negative numbers.
+        final rn = game.roundNumber;
+        final cardsPerRound = (rn <= 10) ? rn : (20 - rn + 1);
+        final forbidden = cardsPerRound - existingSum;
         _lockedForbidden.add(forbidden);
       }
     }
@@ -120,6 +166,10 @@ class GameProvider extends ChangeNotifier {
   @override
   void dispose() {
     _multiplayerService.dispose();
+    _revealTimer?.cancel();
     super.dispose();
   }
+
+  /// Reveal data from server while showing round result overlay
+  Map<String, dynamic>? get revealData => _revealData;
 }

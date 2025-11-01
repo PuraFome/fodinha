@@ -3,7 +3,8 @@ import 'package:provider/provider.dart';
 import '../services/game_provider.dart';
 import '../services/localization_provider.dart';
 import '../models/game.dart';
-// import '../models/card.dart';
+import '../models/card.dart';
+import '../models/player.dart';
 import '../widgets/card_widget.dart';
 
 /// Main game screen where the game is played
@@ -93,8 +94,18 @@ class GameScreen extends StatelessWidget {
                 String stateLabel;
                 if (game.state == GameState.playing) {
                   final idx = game.currentPlayerIndex;
-                  final playerName = (idx >= 0 && idx < game.players.length) ? game.players[idx].name : '';
+                  String playerName = '';
+                  if (idx >= 0 && idx < game.players.length) {
+                    playerName = game.players[idx].name;
+                  }
                   stateLabel = '$playerName jogando';
+                } else if (game.state == GameState.bidding) {
+                  final idx = game.currentBidderIndex;
+                  String playerName = '';
+                  if (idx != null && idx >= 0 && idx < game.players.length) {
+                    playerName = game.players[idx].name;
+                  }
+                  stateLabel = '$playerName apostando';
                 } else {
                   stateLabel = game.state.name.toUpperCase();
                 }
@@ -136,8 +147,23 @@ class GameScreen extends StatelessWidget {
                 fontWeight: isCurrentPlayer ? FontWeight.bold : FontWeight.normal,
               ),
             ),
-            subtitle: Text(
-                '${context.watch<LocalizationProvider>().t('score')}: ${player.score} | ${context.watch<LocalizationProvider>().t('tricks')}: ${player.tricksWon}'),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${context.watch<LocalizationProvider>().t('score')}: ${player.score} | ${context.watch<LocalizationProvider>().t('tricks')}: ${player.tricksWon}',
+                ),
+                const SizedBox(height: 6),
+                // In the special first round, other players' hands are public and
+                // should be shown on their card area. Show only the first card
+                // (top) for preview.
+                if (game.roundNumber == 1 && player.hand.isNotEmpty)
+                  SizedBox(
+                    height: 48,
+                    child: CardWidget(card: player.hand[0], size: 48),
+                  ),
+              ],
+            ),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -167,7 +193,43 @@ class GameScreen extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (game.currentTrick.isEmpty)
+          if (gameProvider.revealData != null) ...[
+            // Show reveal inside the green table area
+            Builder(builder: (ctx) {
+              final rev = gameProvider.revealData!;
+              final entries = (rev['entries'] as List).cast<dynamic>();
+              final winnerId = rev['winnerId'];
+              return Column(
+                children: [
+                    Wrap(
+                    spacing: 12,
+                    alignment: WrapAlignment.center,
+                    children: entries.map((e) {
+                      final pid = e['playerId'] as String;
+                      final cardJson = Map<String, dynamic>.from(e['card']);
+                      final card = GameCard.fromJson(cardJson);
+                      final player = game.players.firstWhere((p) => p.id == pid, orElse: () => Player(id: pid, name: 'Player', hand: []));
+                      // prefer a name provided by the server in the reveal entry
+                      final name = (e['playerName'] as String?) ?? player.name;
+                      final isWinner = (winnerId != null && winnerId == pid);
+                      return Column(
+                        children: [
+                          Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 6),
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: isWinner ? Colors.red : Colors.transparent, width: isWinner ? 3 : 0),
+                            ),
+                            child: CardWidget(card: card, size: 80),
+                          ),
+                        ],
+                      );
+                    }).toList(),
+                  ),
+                ],
+              );
+            }),
+          ] else if (game.currentTrick.isEmpty)
             Text(
               context.watch<LocalizationProvider>().t('waitingForCards'),
               style: const TextStyle(color: Colors.white, fontSize: 18),
@@ -188,11 +250,11 @@ class GameScreen extends StatelessWidget {
   }
 
   Widget _buildBiddingControls(BuildContext context, GameModel game, GameProvider gameProvider) {
-    final currentPlayer = game.players.firstWhere(
-      (p) => p.id == gameProvider.currentPlayerId,
-      orElse: () => game.currentPlayer,
-    );
-    final maxBid = currentPlayer.hand.length;
+    // Calculate cards per round (1..10..1) from roundNumber so bidding range
+    // doesn't depend on the public visibility of the local hand (round 1 hides it).
+    final roundNum = game.roundNumber;
+    final cardsPerRound = (roundNum <= 10) ? roundNum : (20 - roundNum + 1);
+    final maxBid = cardsPerRound;
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -220,18 +282,11 @@ class GameScreen extends StatelessWidget {
                     bidsCount == playersCount - 1 &&
                     !game.bids.containsKey(localPlayerId);
 
-                // Total cards per player (e.g., 10). Using current player's hand length.
                 final totalCards = maxBid;
                 final existingSum = game.bids.values.fold<int>(0, (a, b) => a + b);
 
-                // If I'm the last bidder, disallow any bid 'i' that would make
-                // existingSum + i == totalCards (closing the total number of cards).
-                // Also respect any client-side locked forbidden numbers (they remain
-                // disabled even after placing a different bid).
                 final disabledByLastRule = amILastToBet && (existingSum + i == totalCards);
                 final lockedForbidden = gameProvider.lockedForbidden.contains(i);
-
-                // Also disable if it's not my turn to bet (prevent clicking out of turn)
                 final disabledByTurn = !isMyTurn;
 
                 final disabled = disabledByLastRule || lockedForbidden || disabledByTurn;
@@ -300,29 +355,47 @@ class GameScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: currentPlayer.hand.length,
-              itemBuilder: (context, index) {
-                final card = currentPlayer.hand[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: GestureDetector(
-                    onTap: game.state == GameState.playing
-                        ? () => gameProvider.playCard(card)
-                        : null,
-                    child: CardWidget(
-                      card: card,
-                      size: 100,
-                      isSelectable: game.state == GameState.playing,
+            child: Builder(builder: (ctx) {
+              // Special case for round 1: player's own hand is hidden (server
+              // provides privateHand empty). Show a card back instead of empty.
+              if (game.roundNumber == 1) {
+                return ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: CardBackWidget(size: 100),
                     ),
-                  ),
+                  ],
                 );
-              },
-            ),
+              }
+
+              return ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: currentPlayer.hand.length,
+                itemBuilder: (context, index) {
+                  final card = currentPlayer.hand[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: GestureDetector(
+                      onTap: game.state == GameState.playing
+                          ? () => gameProvider.playCard(card)
+                          : null,
+                      child: CardWidget(
+                        card: card,
+                        size: 100,
+                        isSelectable: game.state == GameState.playing,
+                      ),
+                    ),
+                  );
+                },
+              );
+            }),
           ),
         ],
       ),
     );
   }
+
+  
 }

@@ -184,7 +184,7 @@ function handleStartGame(ws, client) {
     return;
   }
 
-  // Prepare a deck and deal cards to players
+  // Prepare a deck and set up the first round based on roundNumber
   const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
   const ranks = ['four','five','six','seven','queen','jack','king','ace','two','three'];
 
@@ -202,8 +202,16 @@ function handleStartGame(ws, client) {
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
 
-  // Decide cards per player for initial round (use 10 as standard fodinha hand)
-  const cardsPerPlayer = 10;
+  // Start at round 1
+  game.roundNumber = 1;
+
+  // Helper to compute cards per round (1..10..1)
+  const cardsForRound = (roundNum) => {
+    if (roundNum <= 10) return roundNum;
+    return 20 - roundNum + 1;
+  };
+
+  const cardsPerPlayer = cardsForRound(game.roundNumber);
 
   // Deal
   for (const player of game.players) {
@@ -223,7 +231,7 @@ function handleStartGame(ws, client) {
   game.currentBidderIndex = (game.dealerIndex + 1) % game.players.length;
 
   game.state = 'bidding';
-  console.log(`Game ${client.gameId} started and cards dealt`);
+  console.log(`Game ${client.gameId} started and cards dealt for round ${game.roundNumber}`);
 
   sendGameState(client.gameId);
 }
@@ -266,6 +274,142 @@ function handleConfirmBid(ws, client, data) {
       game.currentTrick = [];
       game.playerIdsInTrick = [];
       game.trickStarterIndex = null;
+
+      // Special-case: if this round uses only 1 card per player (round 1 and similar),
+      // auto-play all players' top card immediately and reveal the result.
+      const cardsForRound = (roundNum) => {
+        if (roundNum <= 10) return roundNum;
+        return 20 - roundNum + 1;
+      };
+      const cardsThisRound = cardsForRound(game.roundNumber || 1);
+      if (cardsThisRound === 1) {
+        // Auto-play each player's first card starting from currentPlayerIndex
+        for (let i = 0; i < game.players.length; i++) {
+          const idx = (game.currentPlayerIndex + i) % game.players.length;
+          const p = game.players[idx];
+          if (p.hand && p.hand.length > 0) {
+            const played = p.hand.shift();
+            game.currentTrick.push(played);
+            game.playerIdsInTrick.push(p.id);
+            // if this was the first card, record the starter
+            if (game.currentTrick.length === 1) {
+              game.trickStarterIndex = idx;
+            }
+          }
+        }
+
+        // Evaluate trick winner using rank order and annul-on-tie as in handlePlayCard
+        const ranks = ['four','five','six','seven','queen','jack','king','ace','two','three'];
+        let entries = game.currentTrick.map((c, idx) => ({
+          card: c,
+          playerId: game.playerIdsInTrick[idx],
+          rankIndex: ranks.indexOf(c.rank)
+        }));
+
+        let winnerPlayerId = null;
+        while (entries.length > 0) {
+          let maxRank = Math.max(...entries.map(e => e.rankIndex));
+          const top = entries.filter(e => e.rankIndex === maxRank);
+          if (top.length === 1) {
+            winnerPlayerId = top[0].playerId;
+            break;
+          } else {
+            const topIds = new Set(top.map(t => t.playerId));
+            entries = entries.filter(e => !topIds.has(e.playerId));
+          }
+        }
+
+        if (winnerPlayerId) {
+          const winnerIdx = game.players.findIndex(p => p.id === winnerPlayerId);
+          if (winnerIdx !== -1) {
+            game.players[winnerIdx].tricksWon = (game.players[winnerIdx].tricksWon || 0) + 1;
+            game.currentPlayerIndex = winnerIdx;
+          }
+        } else {
+          if (game.trickStarterIndex != null) {
+            game.currentPlayerIndex = (game.trickStarterIndex + 1) % game.players.length;
+          }
+        }
+
+        const revealEntries = game.currentTrick.map((c, idx) => ({
+          playerId: game.playerIdsInTrick[idx],
+          playerName: (game.players.find(p => p.id === game.playerIdsInTrick[idx]) || {}).name || 'Player',
+          card: c
+        }));
+
+        // Clear trick storage
+        game.currentTrick = [];
+        game.playerIdsInTrick = [];
+        game.trickStarterIndex = null;
+
+        // Send reveal immediately to all sockets in this game
+        const revealMsg = {
+          type: 'reveal',
+          reveal: {
+            entries: revealEntries,
+            winnerId: winnerPlayerId || null,
+            roundNumber: game.roundNumber,
+            duration: 10
+          }
+        };
+
+        wss.clients.forEach(socket => {
+          const clientInfo = clients.get(socket);
+          if (clientInfo && clientInfo.gameId === game.id && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify(revealMsg));
+          }
+        });
+
+        // After 10 seconds, apply scoring and advance to next round (reuse logic used elsewhere)
+        setTimeout(() => {
+          for (const p of game.players) {
+            const pid = p.id;
+            const bid = game.bids[pid] || 0;
+            const tricks = p.tricksWon || 0;
+            if (tricks !== bid) {
+              p.score = (p.score || 0) + 1;
+            }
+            p.tricksWon = 0;
+          }
+
+          // Advance round
+          game.roundNumber = (game.roundNumber || 1) + 1;
+          const cardsForRoundNext = (roundNum) => {
+            if (roundNum <= 10) return roundNum;
+            return 20 - roundNum + 1;
+          };
+          const cardsPerPlayerNext = cardsForRoundNext(game.roundNumber);
+
+          // Rebuild deck and deal next round
+          let newDeck = [];
+          for (const suit of ['hearts','diamonds','clubs','spades']) {
+            for (const rank of ['four','five','six','seven','queen','jack','king','ace','two','three']) {
+              newDeck.push({ suit, rank });
+            }
+          }
+          for (let i = newDeck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
+          }
+
+          for (const p of game.players) {
+            p.hand = [];
+            for (let c = 0; c < cardsPerPlayerNext && newDeck.length > 0; c++) {
+              p.hand.push(newDeck.pop());
+            }
+            p.tricksWon = 0;
+          }
+
+          game.trumpCard = newDeck.length > 0 ? newDeck.pop() : null;
+          game.bids = {};
+          game.bidConfirmed = {};
+          game.currentBidderIndex = (game.dealerIndex + 1) % game.players.length;
+          game.state = 'bidding';
+
+          // Send updated game state after advancing
+          sendGameState(game.id);
+        }, 10000);
+      }
     }
 
     sendGameState(client.gameId);
@@ -363,6 +507,14 @@ function handlePlayCard(ws, client, data) {
       }
     }
 
+    // Prepare reveal info for this trick (before clearing)
+    const revealEntries = game.currentTrick.map((c, idx) => ({
+      playerId: game.playerIdsInTrick[idx],
+      // include player name for convenience on client side
+      playerName: (game.players.find(p => p.id === game.playerIdsInTrick[idx]) || {}).name || 'Player',
+      card: c
+    }));
+
     // Clear trick
     game.currentTrick = [];
     game.playerIdsInTrick = [];
@@ -371,8 +523,76 @@ function handlePlayCard(ws, client, data) {
     // Check if round is over (players have no cards)
     const anyCardsLeft = game.players.some(p => p.hand && p.hand.length > 0);
     if (!anyCardsLeft) {
-      // For now mark round complete. Scoring and next round logic can be added later.
-      game.state = 'round_over';
+      // Reveal the trick to all clients and highlight the winning card for 10s
+      const revealMsg = {
+        type: 'reveal',
+        reveal: {
+          entries: revealEntries,
+          winnerId: winnerPlayerId || null,
+          roundNumber: game.roundNumber
+        }
+      };
+
+      // Send reveal immediately to all sockets in this game
+      wss.clients.forEach(socket => {
+        const clientInfo = clients.get(socket);
+        if (clientInfo && clientInfo.gameId === game.id && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify(revealMsg));
+        }
+      });
+
+      // After 10 seconds, apply scoring for this round and advance to the next
+      setTimeout(() => {
+        // Simple scoring: award a point (increment score) to players who missed their bid
+        for (const p of game.players) {
+          const pid = p.id;
+          const bid = game.bids[pid] || 0;
+          const tricks = p.tricksWon || 0;
+          if (tricks !== bid) {
+            p.score = (p.score || 0) + 1; // mark a point for missing the bid
+          }
+          // reset tricks for next round
+          p.tricksWon = 0;
+        }
+
+        // Advance to next round
+        game.roundNumber = (game.roundNumber || 1) + 1;
+        // compute cards per round
+        const cardsForRound = (roundNum) => {
+          if (roundNum <= 10) return roundNum;
+          return 20 - roundNum + 1;
+        };
+        const cardsPerPlayerNext = cardsForRound(game.roundNumber);
+
+        // Rebuild deck and deal next round
+        let newDeck = [];
+        for (const suit of ['hearts','diamonds','clubs','spades']) {
+          for (const rank of ['four','five','six','seven','queen','jack','king','ace','two','three']) {
+            newDeck.push({ suit, rank });
+          }
+        }
+        for (let i = newDeck.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
+        }
+
+        for (const p of game.players) {
+          p.hand = [];
+          for (let c = 0; c < cardsPerPlayerNext && newDeck.length > 0; c++) {
+            p.hand.push(newDeck.pop());
+          }
+          p.tricksWon = 0;
+        }
+
+        game.trumpCard = newDeck.length > 0 ? newDeck.pop() : null;
+        game.bids = {};
+        game.bidConfirmed = {};
+        game.currentBidderIndex = (game.dealerIndex + 1) % game.players.length;
+        game.state = 'bidding';
+
+  // Send updated game state after advancing
+  sendGameState(game.id);
+      }, 10000);
     }
   }
 
@@ -396,14 +616,35 @@ function sendGameState(gameId) {
   wss.clients.forEach(socket => {
     const clientInfo = clients.get(socket);
     if (clientInfo && clientInfo.gameId === gameId && socket.readyState === WebSocket.OPEN) {
-      // Build a public version of the game where players' hands are hidden
+      // Build a public version of the game. By default we'll hide players' hands
+      // in the public view and provide each socket its privateHand. However, for
+      // the special first round (roundNumber == 1) we show other players' hands
+      // publicly but keep the recipient's own hand hidden.
       const publicGame = JSON.parse(JSON.stringify(game));
       for (const p of publicGame.players) {
-        p.hand = []; // hide actual cards
+        // Default: hide
+        p.hand = [];
         p.handCount = game.players.find(gp => gp.id === p.id).hand.length;
       }
 
-      const playerPrivateHand = game.players.find(gp => gp.id === clientInfo.playerId).hand || [];
+      // If this is the special first round, reveal other players' hands publicly
+      if (game.roundNumber === 1) {
+        for (const p of publicGame.players) {
+          if (p.id !== clientInfo.playerId) {
+            // find the real player's hand and expose it
+            const real = game.players.find(gp => gp.id === p.id);
+            p.hand = real ? JSON.parse(JSON.stringify(real.hand)) : [];
+          } else {
+            // keep recipient's own hand hidden in private for round 1
+            p.hand = [];
+          }
+        }
+      }
+
+      // privateHand: normally the player's actual hand, but in round 1 we keep
+      // the recipient's own hand hidden (empty) because they must not see it.
+      const playerReal = game.players.find(gp => gp.id === clientInfo.playerId);
+      const playerPrivateHand = (game.roundNumber === 1) ? [] : (playerReal ? playerReal.hand : []);
 
       const messageObj = {
         type: 'game_state',

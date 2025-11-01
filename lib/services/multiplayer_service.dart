@@ -12,6 +12,8 @@ class MultiplayerService {
       StreamController<GameModel>.broadcast();
   final StreamController<String> _errorController =
       StreamController<String>.broadcast();
+  final StreamController<Map<String, dynamic>> _revealController =
+    StreamController<Map<String, dynamic>>.broadcast();
 
   String? _serverUrl;
   String? _currentGameId;
@@ -25,6 +27,8 @@ class MultiplayerService {
 
   /// Stream of error messages
   Stream<String> get errorStream => _errorController.stream;
+  /// Stream of reveal events (server announces round reveals)
+  Stream<Map<String, dynamic>> get revealStream => _revealController.stream;
 
   /// Connect to the game server
   Future<bool> connect(String serverUrl) async {
@@ -114,6 +118,12 @@ class MultiplayerService {
           }
 
           _gameStateController.add(gameState);
+          break;
+        case 'reveal':
+          if (data is Map && data.containsKey('reveal')) {
+            final rev = Map<String, dynamic>.from(data['reveal']);
+            _revealController.add(rev);
+          }
           break;
         case 'error':
           _errorController.add(data['message'] as String);
@@ -230,5 +240,6 @@ class MultiplayerService {
     disconnect();
     _gameStateController.close();
     _errorController.close();
+    _revealController.close();
   }
 }
