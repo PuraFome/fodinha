@@ -8,8 +8,17 @@ import '../models/player.dart';
 import '../widgets/card_widget.dart';
 
 /// Main game screen where the game is played
-class GameScreen extends StatelessWidget {
+class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
+
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  // Tracks which players have their profile expanded
+  final Map<String, bool> _expandedPlayers = {};
+  // Compact players bar is always visible; no global collapse state needed
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +60,11 @@ class GameScreen extends StatelessWidget {
                 Expanded(
                   child: Column(
                     children: [
-                      Expanded(child: _buildOtherPlayers(game, gameProvider)),
+                      // Show compact tiles bar (small cards with name, #cards and score)
+                      SizedBox(
+                        height: 140,
+                        child: _buildCompactTilesBar(game, gameProvider),
+                      ),
                       // Wrap table in a translucent container so image is visible
                       Container(
                         color: Colors.transparent,
@@ -68,6 +81,11 @@ class GameScreen extends StatelessWidget {
       ),
     );
   }
+
+
+  
+
+  
 
   Widget _buildGameInfo(BuildContext context, GameModel game) {
     return Container(
@@ -139,6 +157,8 @@ class GameScreen extends StatelessWidget {
     );
   }
 
+  // keep full list builder available for future use (not used by default now)
+  // ignore: unused_element
   Widget _buildOtherPlayers(GameModel game, GameProvider provider) {
     final otherPlayers = game.players;
     return ListView.builder(
@@ -148,51 +168,128 @@ class GameScreen extends StatelessWidget {
         final isCurrentPlayer = player.id == provider.currentPlayerId ||
             (provider.currentPlayerId == null && index == game.currentPlayerIndex);
 
+        final expanded = _expandedPlayers[player.id] ?? false;
+
         return Card(
           color: isCurrentPlayer ? Colors.blue[50] : null,
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: isCurrentPlayer ? Colors.blue : Colors.grey,
-              child: Text(player.name[0].toUpperCase()),
-            ),
-            title: Text(
-              player.name,
-              style: TextStyle(
-                fontWeight: isCurrentPlayer ? FontWeight.bold : FontWeight.normal,
+          child: Column(
+            children: [
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: isCurrentPlayer ? Colors.blue : Colors.grey,
+                  child: Text(player.name[0].toUpperCase()),
+                ),
+                title: Text(
+                  player.name,
+                  style: TextStyle(
+                    fontWeight: isCurrentPlayer ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                // compact when collapsed; full details shown in the expanding area below
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+                      onPressed: () {
+                        setState(() {
+                          _expandedPlayers[player.id] = !expanded;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${player.hand.length} ${context.watch<LocalizationProvider>().t('cards')}',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 4),
+                    if (game.bids.containsKey(player.id))
+                      Text(
+                        '${context.watch<LocalizationProvider>().t('button.bid')}: ${game.bids[player.id]}',
+                        style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${context.watch<LocalizationProvider>().t('score')}: ${player.score} | ${context.watch<LocalizationProvider>().t('tricks')}: ${player.tricksWon}',
-                ),
-                const SizedBox(height: 6),
-                // In the special first round, other players' hands are public and
-                // should be shown on their card area. Show only the first card
-                // (top) for preview.
-                if (game.roundNumber == 1 && player.hand.isNotEmpty)
-                  SizedBox(
-                    height: 60,
-                    child: CardWidget(card: player.hand[0], size: 60),
+              // Animated expansion area with details (score, tricks, preview card)
+              AnimatedCrossFade(
+                duration: const Duration(milliseconds: 200),
+                firstChild: const SizedBox.shrink(),
+                secondChild: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${context.watch<LocalizationProvider>().t('score')}: ${player.score} | ${context.watch<LocalizationProvider>().t('tricks')}: ${player.tricksWon}',
+                      ),
+                      const SizedBox(height: 6),
+                      // In round 1 no player's cards should be shown (fully blind round)
+                      if (game.roundNumber != 1 && player.hand.isNotEmpty)
+                        SizedBox(
+                          height: 60,
+                          child: CardWidget(card: player.hand[0], size: 60),
+                        ),
+                    ],
                   ),
-              ],
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${player.hand.length} ${context.watch<LocalizationProvider>().t('cards')}',
-                  style: const TextStyle(fontSize: 16),
                 ),
-                const SizedBox(height: 4),
-                if (game.bids.containsKey(player.id))
-                  Text(
-                    '${context.watch<LocalizationProvider>().t('button.bid')}: ${game.bids[player.id]}',
-                    style: const TextStyle(fontSize: 14, color: Colors.black, fontWeight: FontWeight.bold),
+                crossFadeState: expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCompactTilesBar(GameModel game, GameProvider provider) {
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      scrollDirection: Axis.horizontal,
+      itemCount: game.players.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 12),
+      itemBuilder: (context, index) {
+        final player = game.players[index];
+        final isCurrentPlayer = player.id == provider.currentPlayerId ||
+            (provider.currentPlayerId == null && index == game.currentPlayerIndex);
+
+        return SizedBox(
+          width: 220,
+          child: Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            color: isCurrentPlayer ? Colors.blue[50] : Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: isCurrentPlayer ? Colors.blue : Colors.grey,
+                        child: Text(player.name.isNotEmpty ? player.name[0].toUpperCase() : '?', style: const TextStyle(fontSize: 14)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          player.name,
+                          style: TextStyle(fontSize: 16, fontWeight: isCurrentPlayer ? FontWeight.bold : FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                      ),
+                    ],
                   ),
-              ],
+                  const SizedBox(height: 10),
+                  // Always show counts and score; never show card face in round 1
+                  Text('${player.hand.length} ${context.watch<LocalizationProvider>().t('cards')}', style: const TextStyle(fontSize: 14)),
+                  const SizedBox(height: 6),
+                  Text('${context.watch<LocalizationProvider>().t('score')}: ${player.score}', style: const TextStyle(fontSize: 14)),
+                ],
+              ),
             ),
           ),
         );

@@ -31,7 +31,7 @@ class LocalizationProvider extends ChangeNotifier {
   'error.enterGameId': 'Por favor informe o ID da partida',
     'lobby.title': 'Sala de Jogo',
     'copiedGameId': 'ID da partida copiado para a área de transferência',
-    'dealer': 'Dealer',
+  'dealer': 'Anfitrião',
     'notReady': 'Não pronto',
     'ready': 'Pronto',
     'startGame': 'Iniciar partida',

@@ -45,6 +45,12 @@ class LobbyScreen extends StatelessWidget {
             });
           }
 
+          // Determine the local/current player for gating actions
+          final currentPlayer = game.players.firstWhere(
+            (p) => p.id == gameProvider.currentPlayerId,
+            orElse: () => game.players.first,
+          );
+
           return Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -152,7 +158,8 @@ class LobbyScreen extends StatelessWidget {
                       },
                     ),
                   ),
-                if (game.canStartGame())
+                // Only the dealer (anfitrião) can start the game
+                if (game.canStartGame() && currentPlayer.isDealer)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: ElevatedButton(
