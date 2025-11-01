@@ -38,7 +38,11 @@ class CardWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: Image.asset(
           assetPath,
-          fit: BoxFit.contain,
+          // Fill the available card rectangle fully. Use cover to preserve
+          // aspect ratio and fill the box (may crop), which gives a nicer
+          // result than contain that left empty margins around the image.
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
           width: double.infinity,
           height: double.infinity,
           errorBuilder: (context, error, stackTrace) {

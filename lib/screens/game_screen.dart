@@ -173,8 +173,8 @@ class GameScreen extends StatelessWidget {
                 // (top) for preview.
                 if (game.roundNumber == 1 && player.hand.isNotEmpty)
                   SizedBox(
-                    height: 48,
-                    child: CardWidget(card: player.hand[0], size: 48),
+                    height: 60,
+                    child: CardWidget(card: player.hand[0], size: 60),
                   ),
               ],
             ),
@@ -234,7 +234,7 @@ class GameScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               border: Border.all(color: isWinner ? Colors.red : Colors.transparent, width: isWinner ? 3 : 0),
                             ),
-                            child: CardWidget(card: card, size: 80),
+                            child: CardWidget(card: card, size: 100),
                           ),
                         ],
                       );
@@ -252,7 +252,7 @@ class GameScreen extends StatelessWidget {
             Wrap(
               spacing: 8,
               children: game.currentTrick
-                  .map((card) => CardWidget(card: card, size: 80))
+                  .map((card) => CardWidget(card: card, size: 100))
                   .toList(),
             ),
           const SizedBox(height: 16),
@@ -357,9 +357,8 @@ class GameScreen extends StatelessWidget {
       (p) => p.id == gameProvider.currentPlayerId,
       orElse: () => game.currentPlayer,
     );
-
     return Container(
-      height: 150,
+      height: 220,
       padding: const EdgeInsets.all(8),
       child: Column(
         children: [
@@ -368,41 +367,41 @@ class GameScreen extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
+          // Center the player's hand horizontally and increase card size
           Expanded(
             child: Builder(builder: (ctx) {
               // Special case for round 1: player's own hand is hidden (server
               // provides privateHand empty). Show a card back instead of empty.
               if (game.roundNumber == 1) {
-                return ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: CardBackWidget(size: 100),
-                    ),
-                  ],
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: CardBackWidget(size: 140),
+                  ),
                 );
               }
 
-              return ListView.builder(
+              return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                itemCount: currentPlayer.hand.length,
-                itemBuilder: (context, index) {
-                  final card = currentPlayer.hand[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: GestureDetector(
-                      onTap: game.state == GameState.playing
-                          ? () => gameProvider.playCard(card)
-                          : null,
-                      child: CardWidget(
-                        card: card,
-                        size: 100,
-                        isSelectable: game.state == GameState.playing,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(currentPlayer.hand.length, (index) {
+                    final card = currentPlayer.hand[index];
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: GestureDetector(
+                        onTap: game.state == GameState.playing
+                            ? () => gameProvider.playCard(card)
+                            : null,
+                        child: CardWidget(
+                          card: card,
+                          size: 140,
+                          isSelectable: game.state == GameState.playing,
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  }),
+                ),
               );
             }),
           ),
