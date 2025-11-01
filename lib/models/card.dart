@@ -100,6 +100,74 @@ class GameCard {
         'rank': rank.name,
       };
 
+  /// Returns the expected asset path for this card following the project's
+  /// convention: assets/images/cards/<suitFolder>/<fileName>.png
+  ///
+  /// Suit folders (Portuguese):
+  /// - hearts -> copas
+  /// - diamonds -> ouros
+  /// - clubs -> paus
+  /// - spades -> espadas
+  ///
+  /// File names (as requested): As.png, 2.png, 3.png, 4.png, 5.png, 6.png,
+  /// 7.png, Dama.png, Velete.png, Rei.png
+  String get assetPath {
+    String suitFolder;
+    switch (suit) {
+      case CardSuit.hearts:
+        suitFolder = 'copas';
+        break;
+      case CardSuit.diamonds:
+        suitFolder = 'ouros';
+        break;
+      case CardSuit.clubs:
+        suitFolder = 'paus';
+        break;
+      case CardSuit.spades:
+        suitFolder = 'espadas';
+        break;
+    }
+
+    String fileName;
+    switch (rank) {
+      case CardRank.ace:
+        fileName = 'As.png';
+        break;
+      case CardRank.two:
+        fileName = '2.png';
+        break;
+      case CardRank.three:
+        fileName = '3.png';
+        break;
+      case CardRank.four:
+        fileName = '4.png';
+        break;
+      case CardRank.five:
+        fileName = '5.png';
+        break;
+      case CardRank.six:
+        fileName = '6.png';
+        break;
+      case CardRank.seven:
+        fileName = '7.png';
+        break;
+      case CardRank.queen:
+        fileName = 'Dama.png';
+        break;
+      case CardRank.jack:
+        fileName = 'Valete.png';
+        break;
+      case CardRank.king:
+        fileName = 'Rei.png';
+        break;
+    }
+
+    // Return the path relative to the asset bundle root WITHOUT a leading
+    // 'assets/' so Flutter web will resolve to 'assets/images/...' (it
+    // prefixes 'assets/' itself). This avoids duplicated 'assets/assets/...' URLs.
+    return 'images/cards/$suitFolder/$fileName';
+  }
+
   /// Create from JSON
   factory GameCard.fromJson(Map<String, dynamic> json) {
     return GameCard(

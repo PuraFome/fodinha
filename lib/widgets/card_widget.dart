@@ -20,6 +20,29 @@ class CardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Only use image assets for hearts (copas). For other suits, use the
+    // existing drawn card UI as fallback. This avoids error logs when
+    // other suit assets are not present.
+    if (card.suit == CardSuit.hearts) {
+      final assetPath = card.assetPath;
+      return SizedBox(
+        width: size * 0.7,
+        height: size,
+        child: Image.asset(
+          assetPath,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            // fallback: drawn card UI
+            return _buildDrawnCard(context);
+          },
+        ),
+      );
+    }
+
+    return _buildDrawnCard(context);
+  }
+
+  Widget _buildDrawnCard(BuildContext context) {
     return Container(
       width: size * 0.7,
       height: size,
