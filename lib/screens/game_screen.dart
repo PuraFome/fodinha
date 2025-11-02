@@ -65,12 +65,18 @@ class _GameScreenState extends State<GameScreen> {
                         height: 140,
                         child: _buildCompactTilesBar(game, gameProvider),
                       ),
-                      // Wrap table in a translucent container so image is visible
-                      Container(
-                        color: Colors.transparent,
-                        child: _buildTable(context, game, gameProvider),
+                      // Make table and hand flexible so they share remaining space
+                      Expanded(
+                        flex: 3,
+                        child: Container(
+                          color: Colors.transparent,
+                          child: _buildTable(context, game, gameProvider),
+                        ),
                       ),
-                      _buildCurrentPlayerHand(context, game, gameProvider),
+                      Expanded(
+                        flex: 2,
+                        child: _buildCurrentPlayerHand(context, game, gameProvider),
+                      ),
                     ],
                   ),
                 ),
@@ -225,8 +231,10 @@ class _GameScreenState extends State<GameScreen> {
                         '${context.watch<LocalizationProvider>().t('score')}: ${player.score} | ${context.watch<LocalizationProvider>().t('tricks')}: ${player.tricksWon}',
                       ),
                       const SizedBox(height: 6),
-                      // In round 1 no player's cards should be shown (fully blind round)
-                      if (game.roundNumber != 1 && player.hand.isNotEmpty)
+                      // During round 1 nobody may see their OWN cards, but may
+                      // see other players' cards. From round 2 on, everyone
+                      // sees their own hand as usual.
+                      if (player.hand.isNotEmpty && !(game.roundNumber == 1 && player.id == provider.currentPlayerId))
                         SizedBox(
                           height: 60,
                           child: CardWidget(card: player.hand[0], size: 60),
@@ -298,12 +306,24 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildTable(BuildContext context, GameModel game, GameProvider gameProvider) {
+    // Use the expanded height provided by the parent. Make the image the
+    // background of this container and use BoxFit.contain so the full image
+    // scales to fit inside the container without being cropped.
     return Container(
-      height: 200,
-      color: Colors.green[700],
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/images/mesa.png'),
+          fit: BoxFit.contain,
+          alignment: Alignment.center,
+        ),
+      ),
+      // Overlay container to improve contrast for white text and card borders
+      child: Container(
+        color: Colors.black26,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
           if (gameProvider.revealData != null) ...[
             // Show reveal inside the green table area
             Builder(builder: (ctx) {
@@ -357,8 +377,9 @@ class _GameScreenState extends State<GameScreen> {
             _buildBiddingControls(context, game, gameProvider),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildBiddingControls(BuildContext context, GameModel game, GameProvider gameProvider) {
     // Calculate cards per round (1..10..1) from roundNumber so bidding range
@@ -455,25 +476,62 @@ class _GameScreenState extends State<GameScreen> {
       orElse: () => game.currentPlayer,
     );
     return Container(
-      height: 220,
       padding: const EdgeInsets.all(8),
       child: Column(
         children: [
           Text(
-            context.watch<LocalizationProvider>().t('yourHand'),
+            game.roundNumber == 1
+                ? context.watch<LocalizationProvider>().t('opponentsHand')
+                : context.watch<LocalizationProvider>().t('yourHand'),
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           // Center the player's hand horizontally and increase card size
           Expanded(
             child: Builder(builder: (ctx) {
-              // Special case for round 1: player's own hand is hidden (server
-              // provides privateHand empty). Show a card back instead of empty.
+              // Special case for round 1: each player should NOT see their
+              // own cards, but should see the other players' hands. So when
+              // roundNumber == 1 show the opponents' hands here (scrollable).
               if (game.roundNumber == 1) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: CardBackWidget(size: 140),
+                // Constrain the opponents view to a fixed height to avoid
+                // bottom overflow on small screens. Use smaller card size so
+                // multiple opponent hands fit comfortably.
+                final otherPlayers = game.players.where((p) => p.id != gameProvider.currentPlayerId).toList();
+                return SizedBox(
+                  // reduced by 11px per request (was 140)
+                  height: 129,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: otherPlayers.map((p) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 69,
+                                child: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
+                              ),
+                              const SizedBox(height: 6),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: List.generate(p.hand.length, (i) {
+                                    final card = p.hand[i];
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                                      child: CardWidget(card: card, size: 69),
+                                    );
+                                  }),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 );
               }

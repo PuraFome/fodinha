@@ -2,14 +2,16 @@ const WebSocket = require('ws');
 const { v4: uuidv4 } = require('uuid');
 
 // Create WebSocket server
-const wss = new WebSocket.Server({ port: 8080 });
+const PORT = process.env.PORT || 8080;
+// bind to 0.0.0.0 for container environments
+const wss = new WebSocket.Server({ port: PORT, host: '0.0.0.0' });
 
 // Store active games
 const games = new Map();
 // Map client WebSocket to player info
 const clients = new Map();
 
-console.log('Fodinha WebSocket Server running on ws://localhost:8080');
+console.log(`Fodinha WebSocket Server running on ws://0.0.0.0:${PORT}`);
 
 wss.on('connection', (ws) => {
   console.log('New client connected');
